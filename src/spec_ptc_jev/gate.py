@@ -92,7 +92,9 @@ class GatedTool(Tool):
 
     def decide(self, args: tuple, kwargs: dict) -> Decision:
         inputs = self.reduce(args, kwargs)
-        key = repr(inputs)
+        # Cache on the raw call, not the reduced view: a reducer that clips or
+        # drops fields would otherwise hand two different calls one decision.
+        key = repr((args, sorted(kwargs.items())))
         with self._lock:
             cached = self._cache.get(key)
         if cached is not None:
