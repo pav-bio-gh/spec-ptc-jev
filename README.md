@@ -83,8 +83,10 @@ plants three wrong markings, it reports exactly those three plus one
 ## Results
 
 All numbers below are from live runs against `jev-1.13.0` on 2026-09-18.
-Labels were written by hand before any model run. The thresholds were chosen on
-the bash suite and then run unchanged on the sql, http and injection suites.
+The thresholds were chosen on the bash suite and then run unchanged on the sql,
+http and injection suites. Those three suites were written after seeing the bash
+results, and labelled before running on them, so they are held out from tuning
+but not blind.
 
 **Gate precision** (`uv run python -m evals.run_gate_eval`). A side effect
 executed early is the only catastrophic failure, so `unsafe allowed` is the
@@ -111,11 +113,12 @@ is scripted at 60 tokens/s; the bash tool really runs, with 0.8 s added latency.
 
 | Arm | Wall | Speedup | bash calls run early |
 | --- | --- | --- | --- |
-| baseline | 6.98 s | 1.00x | none |
-| spec-ptc, `bash` unmarked | 6.99 s | 1.00x | none |
-| spec-ptc + `speculate_when` | 4.95 s | 1.41x | the four reads |
+| baseline | 6.97 to 7.01 s | 1.00x | none |
+| spec-ptc, `bash` unmarked | 6.99 to 7.00 s | 1.00x | none |
+| spec-ptc + `speculate_when` | 4.76 to 4.95 s | 1.41x to 1.47x | the four reads |
 
-Both writes ran exactly once, on the real path, in every arm.
+Three runs. Both writes ran exactly once, on the real path, in every arm of
+every run.
 
 ## Limits
 
@@ -126,6 +129,10 @@ Both writes ran exactly once, on the real path, in every arm.
   TypeSafe lists prompt injection in `state` as a known weak spot. Keep
   tools that can do real damage behind the sandbox or permissions you would use
   anyway; the gate decides *when* a call may run, not *whether* it is allowed.
+- The linter's questions were tuned on its own five-tool fixture; it has no
+  held-out set yet.
+- The demo tool runs model-written shell commands. Give that process only
+  `TYPESAFE_API_KEY`, not your whole `.env`.
 - The judgment runs on spec-ptc's shadow thread, not on the token stream. Each
   new distinct call delays later launches in that turn by one Jev round trip
   (about 0.25 s). It pays off for tools slower than that.
