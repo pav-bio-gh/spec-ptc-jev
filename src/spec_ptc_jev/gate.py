@@ -97,6 +97,7 @@ class GatedTool(Tool):
             cached = self._cache.get(key)
         if cached is not None:
             return cached
+        self.bus.emit("gate_begin", tool=self.name, inputs=inputs)
         decision = self.judge.decide(
             tool=self.name,
             description=self.description,
