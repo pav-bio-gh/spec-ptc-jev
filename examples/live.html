@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speculation Gate, Live</title>
+<style>
+:root {
+  --bg:#f7f7f5; --panel:#ffffff; --ink:#1b1d21; --muted:#6b7280; --line:#e4e4e0;
+  --stream:#8b8f98; --judge:#d69a1c; --early:#1f9d6b; --real:#3b6fd4; --refused:#c8443a; --code:#f1f1ee;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#0f1115; --panel:#171a20; --ink:#e7e9ee; --muted:#8d94a3; --line:#262a33;
+  --stream:#6d7482; --judge:#e0a93a; --early:#35c48c; --real:#6b9cf5; --refused:#ef6b60; --code:#12151a;
+} }
+:root[data-theme="dark"] {
+  --bg:#0f1115; --panel:#171a20; --ink:#e7e9ee; --muted:#8d94a3; --line:#262a33;
+  --stream:#6d7482; --judge:#e0a93a; --early:#35c48c; --real:#6b9cf5; --refused:#ef6b60; --code:#12151a;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif; }
+.wrap { max-width:1480px; margin:0 auto; padding:28px 16px 64px; }
+h1 { font-size:24px; line-height:1.25; margin:0 0 8px; letter-spacing:-0.01em; max-width:40ch; }
+.lede { color:var(--muted); max-width:80ch; margin:0 0 18px; }
+.bar-top { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:18px; }
+button { font:inherit; font-weight:600; padding:9px 18px; border-radius:8px; border:1px solid var(--ink); background:var(--ink); color:var(--bg); cursor:pointer; }
+button:disabled { opacity:.45; cursor:default; }
+#status { color:var(--muted); font-variant-numeric:tabular-nums; }
+.lanes { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px; }
+@media (max-width:1100px) { .lanes { grid-template-columns:1fr; } }
+.lane { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 14px 10px; min-width:0; }
+.lane.winner { border-color:var(--early); box-shadow:0 0 0 1px var(--early) inset; }
+.head { display:flex; align-items:baseline; gap:10px; margin-bottom:2px; }
+.name { font-weight:700; }
+.clock { margin-left:auto; font:600 22px/1 ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums; }
+.note { color:var(--muted); font-size:13px; margin-bottom:10px; min-height:40px; }
+.answer { font-size:12.5px; margin-top:10px; min-height:56px; color:var(--muted); }
+.answer b { color:var(--ink); }
+pre.code { background:var(--code); border-radius:8px; padding:10px 12px; margin:0 0 12px; height:170px; overflow:auto; font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; word-break:break-word; }
+.caret { display:inline-block; width:7px; height:13px; background:var(--ink); vertical-align:-2px; animation:blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.rows { display:grid; gap:5px; }
+.row { display:grid; grid-template-columns:minmax(96px,40%) 1fr; gap:8px; align-items:center; font-size:12px; }
+.lbl { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+.lbl .chip { font:600 10px/1 -apple-system,sans-serif; padding:2px 5px; border-radius:4px; margin-left:6px; color:#fff; vertical-align:1px; }
+.trk { position:relative; height:14px; background:var(--code); border-radius:4px; overflow:hidden; }
+.seg { position:absolute; top:0; bottom:0; border-radius:3px; min-width:2px; }
+.axis { display:grid; grid-template-columns:minmax(96px,40%) 1fr; gap:8px; margin-top:6px; color:var(--muted); font-size:11px; }
+.ticks { position:relative; height:14px; }
+.ticks i { position:absolute; font-style:normal; transform:translateX(-50%); font-variant-numeric:tabular-nums; }
+.mark { position:absolute; top:0; bottom:0; width:0; border-left:1px dashed var(--muted); opacity:.7; }
+.legend { display:flex; gap:16px; flex-wrap:wrap; margin:16px 0 0; color:var(--muted); font-size:13px; }
+.legend span::before { content:""; display:inline-block; width:12px; height:10px; border-radius:3px; margin-right:6px; background:var(--c); vertical-align:-1px; }
+.legend .dash::before { background:none; border-left:1px dashed var(--muted); width:0; height:12px; margin-left:5px; }
+.result { margin-top:18px; font-size:18px; font-weight:600; min-height:28px; }
+section { margin-top:26px; }
+h2 { font-size:15px; margin:0 0 8px; }
+.tablewrap { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-size:13px; font-variant-numeric:tabular-nums; }
+th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+th { color:var(--muted); font-weight:600; }
+td.cmd { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; white-space:normal; word-break:break-all; }
+.pill { font-weight:600; font-size:11px; padding:2px 7px; border-radius:999px; color:#fff; }
+.facts { color:var(--muted); font-size:13px; max-width:92ch; }
+.facts p { margin:6px 0; }
+.facts strong { color:var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Three live agent turns, same task. Only one may start tool calls before its code is finished, and a small model decides which.</h1>
+  <p class="lede">Press Run. All three lanes start at the same moment. Each has its own live model writing code and its own real browser. In the third lane, <a href="https://docs.typesafe.ai" style="color:inherit">Jev</a> reads every <code>browse(...)</code> call as it is written: opening a page may start now, submitting a search must wait until the code is complete. Nothing here is recorded or staged.</p>
+  <div class="bar-top">
+    <button id="run">Run live</button>
+    <span id="status">idle</span>
+  </div>
+  <div class="lanes" id="lanes"></div>
+  <div class="legend">
+    <span style="--c:var(--stream)">model writing code</span>
+    <span style="--c:var(--judge)">Jev judging</span>
+    <span style="--c:var(--early)">tool started before the code was finished</span>
+    <span style="--c:var(--real)">tool started after</span>
+    <span class="dash">code complete</span>
+  </div>
+  <div class="result" id="result"></div>
+
+  <section>
+    <h2>What Jev decided, this run</h2>
+    <div class="tablewrap"><table id="verdicts"><thead><tr><th>Call</th><th>P(fits policy)</th><th>P(changes state)</th><th>Judged in</th><th>Verdict</th></tr></thead><tbody></tbody></table></div>
+    <p class="facts" id="policy"></p>
+  </section>
+
+  <section>
+    <h2>Not just this run</h2>
+    <div class="tablewrap"><table id="eval"><thead><tr><th>Arm</th><th>Runs</th><th>Median</th><th>Range</th></tr></thead><tbody></tbody></table></div>
+    <div class="facts" id="evalfacts"></div>
+  </section>
+
+  <section class="facts">
+    <h2 style="color:var(--ink)">What you are looking at</h2>
+    <p><strong>Everything is real.</strong> The model stream (<span id="model">the root model</span>), every page load in headless Chromium waiting for network idle, the sub-model call, every Jev verdict, every timestamp. Bars are drawn from events the Python process emits as things happen, on its own clock, per lane.</p>
+    <p><strong>Why the middle lane gains nothing.</strong> spec-ptc marks a whole tool safe or unsafe. <code>browse</code> can submit forms, so it has to stay unmarked, and the one call spec-ptc may start early (<code>llm_query</code>) needs the pages first.</p>
+    <p><strong>Where the third lane's time goes.</strong> The five page loads overlap each other and the model's typing, and the sub-model call starts the moment the last page lands. The search waits for the dashed line, then runs once. The three lanes share your network, so one live race is noisier than the medians above it.</p>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const ORDER = ["serial", "spec", "gate"];
+const ARMS = {
+  serial: { name: "No speculation", note: "The code runs only after the model stops writing." },
+  spec:   { name: "spec-ptc, no Jev", note: "As shipped. browse can submit forms, so it is unmarked and nothing may start early." },
+  gate:   { name: "Our loop + Jev", note: "Jev judges each call as it is written. Allowed calls start at once." },
+};
+let S = null, scale = 12, raf = 0;
+
+function reset() {
+  S = {}; $("lanes").innerHTML = ""; $("result").textContent = "";
+  document.querySelector("#verdicts tbody").innerHTML = "";
+  for (const arm of ORDER) {
+    const lane = document.createElement("div"); lane.className = "lane";
+    lane.innerHTML = `<div class="head"><span class="name"></span><span class="clock">0.00s</span></div>
+      <div class="note"></div><pre class="code"></pre><div class="rows"></div>
+      <div class="axis"><div></div><div class="ticks"></div></div><div class="answer"></div>`;
+    lane.querySelector(".name").textContent = ARMS[arm].name;
+    lane.querySelector(".note").textContent = ARMS[arm].note;
+    $("lanes").appendChild(lane);
+    S[arm] = { lane, clock: lane.querySelector(".clock"), code: lane.querySelector(".code"), rows: lane.querySelector(".rows"),
+      ticks: lane.querySelector(".ticks"), text: "", startedAt: null, offset: 0, doneAt: null, streaming: false, commit: null,
+      segs: [], rowByLabel: new Map(), callSeg: new Map(), judge: new Map(), early: 0, errors: [] };
+  }
+  drawTicks();
+}
+function drawTicks() {
+  for (const arm in S) {
+    const el = S[arm].ticks; el.innerHTML = "";
+    const step = scale <= 14 ? 2 : scale <= 30 ? 5 : 10;
+    for (let t = 0; t <= scale; t += step) { const i = document.createElement("i"); i.style.left = (100 * t / scale) + "%"; i.textContent = t + "s"; el.appendChild(i); }
+  }
+}
+const short = l => l.replace("https://en.wikipedia.org/wiki/", "wiki/");
+function row(a, label) {  // one row per call; a repeated label gets its own row
+  let list = a.rowByLabel.get(label);
+  if (!list) { list = []; a.rowByLabel.set(label, list); }
+  let r = list.find(x => !x.taken);
+  if (!r) {
+    const el = document.createElement("div"); el.className = "row";
+    el.innerHTML = `<div class="lbl"></div><div class="trk"></div>`;
+    el.firstChild.textContent = short(label); el.firstChild.title = label;
+    a.rows.appendChild(el);
+    r = { el, trk: el.lastChild, lbl: el.firstChild, taken: false };
+    list.push(r);
+    if (a.commit !== null) mark(r.trk, a.commit);
+  }
+  return r;
+}
+function seg(a, trk, color, t0) {
+  const el = document.createElement("div"); el.className = "seg"; el.style.background = `var(--${color})`;
+  trk.appendChild(el); const s = { el, t0, t1: null }; a.segs.push(s); return s;
+}
+function chip(r, text, color) { const c = document.createElement("span"); c.className = "chip"; c.style.background = `var(--${color})`; c.textContent = text; r.lbl.appendChild(c); }
+function mark(trk, t) { if (trk.querySelector(".mark")) return; const m = document.createElement("div"); m.className = "mark"; m.dataset.t = t; trk.appendChild(m); }
+function now(a) { return a.doneAt ?? (a.startedAt === null ? 0 : (performance.now() - a.startedAt) / 1000 + a.offset); }
+
+function handle(ev) {
+  if (ev.kind === "race_start") { reset(); scale = 12; $("run").disabled = true; $("status").textContent = "running…";
+    $("policy").textContent = "Policy given to Jev: “" + ev.policy + "” A call starts early only when P(fits policy) ≥ 0.50 and P(changes state) ≤ 0.25. An error or a timeout counts as a no.";
+    $("model").textContent = ev.root_model; loop(); return; }
+  if (ev.kind === "race_done") { $("run").disabled = false; $("status").textContent = "done"; verdict(); return; }
+  if (!S) reset();
+  const a = S[ev.arm]; if (!a) return;
+  switch (ev.kind) {
+    case "arm_start": a.startedAt = performance.now(); a.offset = Math.max(0, Date.now() / 1000 - ev.wall); break;  // offset > 0 only when joining mid-race
+    case "stream_begin": { a.streaming = true; const r = row(a, "model writes code"); r.taken = true; a.streamSeg = seg(a, r.trk, "stream", ev.t); break; }
+    case "token": a.text += ev.text; a.code.textContent = a.text; if (a.streaming) { const c = document.createElement("span"); c.className = "caret"; a.code.appendChild(c); } a.code.scrollTop = a.code.scrollHeight; break;
+    case "stream_end": a.streaming = false; a.code.textContent = a.text; if (a.streamSeg) a.streamSeg.t1 = ev.t; break;
+    case "commit": a.commit = ev.t; for (const list of a.rowByLabel.values()) for (const r of list) mark(r.trk, ev.t); break;
+    case "judge_start": { const r = row(a, ev.label); a.judge.set(ev.label, { s: seg(a, r.trk, "judge", ev.t), r, t0: ev.t }); break; }
+    case "judge_end": { const j = a.judge.get(ev.label); if (j) { j.s.t1 = ev.t; if (!ev.allowed) chip(j.r, "WAIT", "refused"); addVerdict(ev, j.t0); } break; }
+    case "call_start": { const r = row(a, ev.label); r.taken = true; if (ev.early) a.early++; a.callSeg.set(ev.id, seg(a, r.trk, ev.early ? "early" : "real", ev.t)); break; }
+    case "call_end": { const s = a.callSeg.get(ev.id); if (s) s.t1 = ev.t; break; }
+    case "arm_done": a.doneAt = ev.t; a.errors = ev.errors || []; a.info = ev; a.clock.textContent = ev.t.toFixed(2) + "s"; if (a.errors.length) a.lane.querySelector(".note").textContent = "error: " + a.errors[0]; { const el = a.lane.querySelector(".answer"); el.innerHTML = "<b></b> "; el.firstChild.textContent = ev.answer_correct ? "Answer (correct order):" : "Answer (NOT verified):"; el.appendChild(document.createTextNode(ev.answer || "none")); } break;
+  }
+}
+function addVerdict(ev, t0) {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td class="cmd"></td><td>${ev.p_policy.toFixed(2)}</td><td>${ev.p_side_effect.toFixed(2)}</td><td>${Math.round((ev.t - t0) * 1000)} ms</td><td><span class="pill" style="background:var(--${ev.allowed ? "early" : "refused"})">${ev.allowed ? "START NOW" : "WAIT"}</span></td>`;
+  tr.firstChild.textContent = short(ev.label) + (ev.reason ? "  (" + ev.reason + ")" : "");
+  document.querySelector("#verdicts tbody").appendChild(tr);
+}
+function loop() {
+  cancelAnimationFrame(raf);
+  const tick = () => {
+    let longest = 0;
+    for (const arm in S) { const a = S[arm]; const T = now(a); longest = Math.max(longest, T); if (a.startedAt !== null && a.doneAt === null) a.clock.textContent = T.toFixed(2) + "s"; }
+    if (longest > scale * 0.94) { scale = Math.ceil(longest * 1.25); drawTicks(); }
+    for (const arm in S) { const a = S[arm]; const T = now(a);
+      for (const s of a.segs) { const end = s.t1 ?? T; s.el.style.left = (100 * s.t0 / scale) + "%"; s.el.style.width = Math.max(0, 100 * (end - s.t0) / scale) + "%"; }
+      for (const m of a.lane.querySelectorAll(".mark")) m.style.left = (100 * m.dataset.t / scale) + "%";
+    }
+    if ($("run").disabled) raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+}
+function verdict() {
+  const arms = ORDER.map(k => S[k]);
+  if (arms.some(a => a.doneAt === null)) return;
+  if (arms.some(a => a.errors.length)) { $("result").textContent = "A lane hit an error this run; see the note above it."; return; }
+  const [s, p, g] = arms;
+  arms.reduce((best, a) => a.doneAt < best.doneAt ? a : best).lane.classList.add("winner");
+  const safe = g.info.searches === 1 && !g.info.search_early && g.info.opens === 5;
+  const right = arms.filter(a => a.info.answer_correct).length;
+  $("result").textContent = `No speculation ${s.doneAt.toFixed(2)} s · spec-ptc alone ${p.doneAt.toFixed(2)} s · with Jev ${g.doneAt.toFixed(2)} s · ${(s.doneAt / g.doneAt).toFixed(2)}× · ${g.early} calls started early · ` + (safe ? "every page opened once, search ran once and not early" : "CHECK FAILED: see lanes") + ` · correct answers ${right}/3`;
+}
+$("run").onclick = async () => { $("run").disabled = true; $("status").textContent = "starting three browsers…"; await fetch("/run", { method: "POST" }); };
+fetch("/eval").then(r => r.json()).then(d => {
+  if (d.error || !d.arms) { $("evalfacts").textContent = "No saved evaluation yet. Run: python -m examples.browse_race 5"; return; }
+  const names = { serial: "no speculation", spec: "spec-ptc, no Jev", parallel: "our loop, side by side but never early", gate: "our loop + Jev" };
+  const tb = document.querySelector("#eval tbody");
+  for (const k of ["serial", "spec", "parallel", "gate"]) { const a = d.arms[k]; if (!a) continue; const tr = document.createElement("tr"); tr.innerHTML = `<td>${names[k]}</td><td>${a.n} of ${a.attempts} correct</td><td>${a.median.toFixed(2)} s</td><td>${a.min.toFixed(2)} to ${a.max.toFixed(2)} s</td>`; tb.appendChild(tr); }
+  $("evalfacts").innerHTML = `<p>Same task, one arm at a time, in a fresh random order each round, ${d.rounds} rounds on ${d.recorded} with ${d.root_model}. Jev allowed ${d.opens_allowed} of ${d.opens_judged} page opens and refused ${d.searches_refused} of ${d.searches_judged} searches. The search never ran early in any run: ${d.search_never_early}. No call ran twice in any run: ${d.no_call_ran_twice}. Final answer in the correct birth order: ${d.answers_correct} of ${d.runs} runs. Errors: ${d.errors}.</p>`;
+});
+reset();
+new EventSource("/events").onmessage = m => handle(JSON.parse(m.data));
+</script>
+</body>
+</html>

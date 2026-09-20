@@ -13,6 +13,7 @@ from spec_ptc.runtime.engines import MockLM, MockTiming
 from spec_ptc.runtime.harness import Harness
 
 from spec_ptc_jev import Decision, GatedTool, JevSpeculator
+from spec_ptc_jev.worker import JudgeWorker
 
 FAST = MockTiming(main_tok_per_s=2000, sub_base_s=0.1, sub_jitter_s=0.0, sub_tokens=2)
 
@@ -100,7 +101,7 @@ def test_decisions_are_cached_per_reduced_input():
     judge = PrefixJudge()
     tool, _ = make_kv(judge)
     for _ in range(3):
-        assert tool.speculatable_call(("get", "k1"), {})
+        assert tool.decide(("get", "k1"), {}).allowed
     assert len(judge.seen) == 1
     assert judge.seen[0] == {"op": "get", "key": "k1"}  # bound to parameter names
 
@@ -115,14 +116,14 @@ def test_reducer_controls_what_the_judge_sees():
     tool = GatedTool(
         send, speculate_when="reads only", judge=judge, reduce=lambda a, k: {"op": a[0]}
     )
-    assert tool.speculatable_call(("get", "sk-secret"), {})
+    assert tool.decide(("get", "sk-secret"), {}).allowed
     assert "sk-secret" not in repr(judge.seen)
 
 
 def test_default_reducer_clips_long_values():
     judge = PrefixJudge()
     tool, _ = make_kv(judge)
-    tool.speculatable_call(("get", "x" * 5000), {})
+    tool.decide(("get", "x" * 5000), {})
     assert len(judge.seen[0]["key"]) < 700
 
 
@@ -144,3 +145,56 @@ def test_decorator_accepts_speculate_when_and_rejects_mixing():
         spec.tool(speculate_when="x", speculatable=True, pure=True)
     with pytest.raises(ValueError):
         spec.tool(reduce=lambda a, k: a)
+
+
+class SlowJudge(PrefixJudge):
+    """PrefixJudge that takes `delay` seconds per verdict, like a network judge."""
+
+    def __init__(self, delay):
+        super().__init__()
+        self.delay = delay
+        self.asked_at = []
+
+    def decide(self, **kw):
+        self.asked_at.append(time.perf_counter())
+        time.sleep(self.delay)
+        return super().decide(**kw)
+
+
+def test_judge_timeout_refuses_and_the_call_still_runs_once():
+    tool, calls = make_kv(SlowJudge(1.0))
+    tool.worker = JudgeWorker(timeout_s=0.1)
+    out, _, exec_begin = run_turn(tool, CODE)
+    assert out.final_answer == "get:k1|set:k2|get:k3"
+    assert len(calls) == 3
+    assert [d.reason for _, d in tool.decisions if "timeout" in d.reason]
+    assert not any(d.allowed for _, d in tool.decisions)
+
+
+def test_a_subscriber_that_asks_for_a_verdict_cannot_stall_the_judge():
+    bus = EventBus()
+    tool = GatedTool(
+        lambda op: op, speculate_when="reads only", judge=PrefixJudge(), name="kv", bus=bus
+    )
+    seen = {}
+
+    def nosy(ev):
+        if ev.kind == "gate" and "second" not in seen:
+            seen["second"] = tool.decide(
+                ("get other",), {}
+            ).allowed  # waits for another verdict
+
+    bus.subscribe(nosy)
+    assert tool.decide(("get",), {}).allowed
+    deadline = time.time() + 3
+    while "second" not in seen and time.time() < deadline:
+        time.sleep(0.01)
+    assert seen.get("second") is True
+
+
+def test_batched_gated_tool_is_rejected():
+    class Batched(GatedTool):
+        batched = True
+
+    with pytest.raises(NotImplementedError):
+        Batched(lambda xs: xs, speculate_when="reads only", judge=PrefixJudge())
