@@ -1,7 +1,7 @@
 [project]
 name = "spec-ptc-jev"
 version = "0.1.0"
-description = "Natural-language speculation gates for speculative programmatic tool calling (spec-ptc), judged by TypeSafe Jev"
+description = "A streaming REPL for code-writing agents: TypeSafe Jev decides which tool calls may start before the code is finished"
 readme = "README.md"
 license = "MIT"
 authors = [
@@ -25,6 +25,13 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.8",
 ]
+examples = [
+    "openai>=2.14.0",
+    "playwright>=1.63.0",
+]
+
+[tool.uv]
+default-groups = ["dev", "examples"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

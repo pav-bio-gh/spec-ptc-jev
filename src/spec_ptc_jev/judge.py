@@ -88,10 +88,13 @@ class JevJudge:
         self.max_side_effect = max_side_effect
         self.model = model
         self._client = client or TypeSafeClient()
+        self._aclient = None  # created lazily inside the judge worker's loop
+        self._sync_only = client is not None  # an injected client is used as given
         self._questions = {
             "policy": Noul(instructions=POLICY_QUESTION, criteria=POLICY_CRITERIA),
             "side_effect": Noul(
-                instructions=SIDE_EFFECT_QUESTION, criteria=SIDE_EFFECT_CRITERIA
+                instructions=SIDE_EFFECT_QUESTION,
+                criteria=SIDE_EFFECT_CRITERIA,
             ),
         }
 
@@ -103,9 +106,45 @@ class JevJudge:
         }
         try:
             resp = self._client.system_one(state, self._questions, model=self.model)
+        except Exception as e:  # fail closed: no judgment, no early execution
+            return Decision(False, 0.0, 1.0, reason=f"judge error: {type(e).__name__}")
+        return self._to_decision(resp)
+
+    async def adecide(
+        self, *, tool: str, description: str, policy: str, inputs: Any
+    ) -> Decision:
+        """Same judgment without blocking a thread; the judge worker calls this. The async
+        client is created on first use, inside the worker's event loop."""
+        if self._aclient is None:
+            if self._sync_only:
+                import asyncio
+
+                return await asyncio.to_thread(
+                    self.decide,
+                    tool=tool,
+                    description=description,
+                    policy=policy,
+                    inputs=inputs,
+                )
+            from typesafe_sdk import AsyncTypeSafeClient
+
+            self._aclient = AsyncTypeSafeClient()
+        state = {
+            "tool": {"name": tool, "description": description},
+            "policy": policy,
+            "call": inputs,
+        }
+        try:
+            resp = await self._aclient.system_one(state, self._questions, model=self.model)
+        except Exception as e:
+            return Decision(False, 0.0, 1.0, reason=f"judge error: {type(e).__name__}")
+        return self._to_decision(resp)
+
+    def _to_decision(self, resp: Any) -> Decision:
+        try:
             p_policy = float(resp.nouls["policy"].noul)
             p_side = float(resp.nouls["side_effect"].noul)
-        except Exception as e:  # fail closed: no judgment, no early execution
+        except Exception as e:
             return Decision(False, 0.0, 1.0, reason=f"judge error: {type(e).__name__}")
         allowed = p_policy >= self.min_policy and p_side <= self.max_side_effect
         return Decision(allowed, p_policy, p_side)
