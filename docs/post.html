@@ -1,0 +1,246 @@
+<title>Speculative Tool Calling with Jev</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+/* A paper figure: one committed light look, black ink, thin rules, two muted accents. */
+:root{--ground:#FFFFFF;--page:#F4F4F2;--ink:#16181B;--grey:#5F656D;--faint:#9BA1A8;--rule:#C9CDD2;--hair:#E6E8EB;
+  --run:#1F4E9C;--run-bg:#EAF0FA;--judge:#6B5B95;--judge-bg:#F1EEF7;--deny:#A8481A;--deny-bg:#FBEFE7}
+body{background:var(--page);color:var(--ink);font:400 14px/1.5 "Source Serif 4",Georgia,serif;padding-inline:16px;padding-block:24px 40px}
+.wrap{max-width:1280px;margin-inline:auto;display:flex;flex-direction:column;gap:12px}
+.lst{background:#FFFFFF;border:1px solid #E4E6EA;border-radius:14px;margin:0 auto;width:100%;max-width:820px;box-sizing:border-box;padding:20px 24px 20px 0;overflow-x:auto;
+  font:400 14px/1.85 "Geist Mono","IBM Plex Mono",ui-monospace,monospace;color:#1F2328;counter-reset:ln;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.lst .l{display:block;white-space:pre;counter-increment:ln}
+.lst .l::before{content:counter(ln);display:inline-block;width:2.2em;margin-right:1.4em;text-align:right;color:#C2C7CE;user-select:none}
+.lst .kw{color:#1F2328}.lst .ty{color:#7A4DFF}.lst .str{color:#EE5A1F}.lst .cm{color:#9AA1A9}.lst .pn{color:#A9AFB7}
+h1{font:600 clamp(28px,4.4vw,38px)/1.15 "Source Serif 4",Georgia,serif;margin:0 auto;width:100%;max-width:820px;text-wrap:balance}
+h2{font:600 21px/1.25 "Source Serif 4",Georgia,serif;margin:22px auto 0;width:100%;max-width:820px;text-wrap:balance}
+.pr{width:100%;max-width:820px;box-sizing:border-box;font-size:17px;line-height:1.6;margin:0 auto}
+.by{font:400 14px "IBM Plex Sans",sans-serif;margin:0 auto;width:100%;max-width:820px}
+ul.pr,ol.pr{padding-left:24px;display:flex;flex-direction:column;gap:8px}
+ol.refs{font-size:15px;line-height:1.5;gap:6px}
+a{color:inherit;text-decoration-color:var(--run);text-underline-offset:3px}
+code{font:400 .9em "IBM Plex Mono",ui-monospace,monospace}
+.res{border-collapse:collapse;width:100%;font:400 15.5px/1.3 "Source Serif 4",Georgia,serif;table-layout:auto}
+.res th{font:600 13px "IBM Plex Sans",sans-serif;text-align:left;padding:7px 8px;border-top:1.5px solid var(--ink);border-bottom:1px solid var(--ink);color:var(--ink)}
+.res td{padding:7px 8px;border-bottom:1px solid var(--hair);height:auto;font:inherit;white-space:normal}
+.res tr:last-child td{border-bottom:1.5px solid var(--ink);font-weight:600}
+.res .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.scroll{overflow-x:auto;width:100%;max-width:820px;margin-inline:auto}
+.cap{width:100%;max-width:820px;margin:0 auto;font-size:14.5px;line-height:1.5}.cap b{font-weight:600}
+.ctl{width:100%;max-width:820px;margin-inline:auto;display:flex;gap:10px;align-items:center;font:400 12.5px "IBM Plex Sans",sans-serif}
+button{font:inherit;background:var(--ground);color:var(--ink);border:1px solid var(--rule);border-radius:3px;padding:3px 11px;cursor:pointer}
+button:focus-visible{outline:2px solid var(--run);outline-offset:2px}
+
+.frame{container-type:inline-size;width:100%;max-width:820px;margin-inline:auto;position:relative}
+#again{position:absolute;top:.55cqw;left:.7cqw;z-index:1;font:400 .85cqw/1 "IBM Plex Sans",sans-serif;padding:.35cqw .8cqw}
+.fig{aspect-ratio:16/9;background:var(--ground);color:var(--ink);border:1px solid var(--rule);box-sizing:border-box;padding:2.6cqw 2.8cqw;
+  display:grid;grid-template-columns:1fr 1fr;column-gap:2.6cqw;overflow:hidden}
+.col{display:flex;flex-direction:column;justify-content:space-between;min-width:0;min-height:0}
+.ttl{font:600 1.22cqw/1.25 "Source Serif 4",Georgia,serif}
+.sub{font:400 1.02cqw/1.3 "Source Serif 4",Georgia,serif;color:var(--ink);margin-top:.35cqw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lab{font:500 .82cqw/1 "IBM Plex Sans",sans-serif;letter-spacing:.09em;text-transform:uppercase;color:var(--ink);display:flex;justify-content:space-between;margin:1.3cqw 0 .45cqw}
+.lab em{font-style:normal;letter-spacing:0;text-transform:none;color:var(--ink)}
+
+/* the editor */
+.ed{border:1px solid var(--rule);height:20.8cqw;overflow:hidden;display:flex;flex-direction:column;flex:none}
+.pin{flex:none;border-bottom:1px solid var(--rule);background:#FAFAF9}
+.view{flex:1;position:relative;overflow:hidden;min-height:0}
+.lines{position:absolute;inset:0 0 auto 0}
+.ln{display:grid;grid-template-columns:2.7cqw 1fr auto;align-items:center;height:1.6cqw;font:400 .9cqw/1 "IBM Plex Mono",ui-monospace,monospace;white-space:pre;border-left:.22cqw solid transparent}
+.ln[hidden]{display:none}
+.ln .no{color:var(--faint);text-align:right;padding-right:.9cqw;font-size:.74cqw}
+.ln .tx{overflow:hidden;text-overflow:ellipsis}
+.ln .tag{font:italic 400 .9cqw/1 "Source Serif 4",Georgia,serif;padding:0 .7cqw 0 1cqw;white-space:nowrap;color:var(--ink)}
+.ln.judge{background:var(--judge-bg);border-left-color:var(--judge)}.ln.judge .tag{color:var(--judge)}
+.ln.exec{background:var(--run-bg);border-left-color:var(--run)}.ln.exec .tag{color:var(--run)}
+.ln.hold{background:var(--deny-bg);border-left-color:var(--deny)}.ln.hold .tag{color:var(--deny)}
+.ln.done .tag{color:var(--ink)}
+.kw{color:#1F4E9C}.str{color:#7A4B12}.cm{color:#3F6B45}
+.caret{display:inline-block;width:.42cqw;height:.95cqw;background:var(--ink);vertical-align:-.13cqw}
+
+/* the monitor: a plain table */
+table{border-collapse:collapse;width:100%;font:400 .95cqw/1 "IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;table-layout:fixed}
+thead th{font:600 .86cqw/1 "IBM Plex Sans",sans-serif;color:var(--ink);text-align:left;padding:.55cqw .5cqw;border-top:1.5px solid var(--ink);border-bottom:1px solid var(--ink)}
+tbody td{padding:0 .5cqw;height:2.05cqw;border-bottom:1px solid var(--hair);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tbody tr:last-child td{border-bottom:1.5px solid var(--ink)}
+th.r,td.r{text-align:right}
+td.st{font:400 1cqw/1 "IBM Plex Sans",sans-serif}
+tr.idle td{color:var(--faint)}
+tr.judge td.st,tr.judge td.g{color:var(--judge)}tr.exec{background:var(--run-bg)}tr.exec td.st{color:var(--run);font-weight:600}
+tr.hold{background:var(--deny-bg)}tr.hold td.st{color:var(--deny);font-weight:600}
+td.g.deny{color:var(--deny)}td.g.allow{color:var(--ink)}
+.wall{display:flex;justify-content:space-between;align-items:baseline;margin-top:.8cqw;font:400 1.02cqw/1 "Source Serif 4",Georgia,serif;color:var(--ink)}
+.wall b{font:600 1.5cqw/1 "Source Serif 4",Georgia,serif;color:var(--ink);font-variant-numeric:tabular-nums}
+.wall i{font-style:italic;color:var(--run);margin-left:.6cqw;opacity:0;transition:opacity .4s}.wall i.on{opacity:1}
+</style>
+
+<div class="wrap">
+  <h1>Speculative Tool Calling with Jev</h1>
+  <p class="by">Zach Khorozian · September 2026</p>
+  <p class="pr">Programmatic tool calling (PTC) agents write code that chains tool calls and logic together in a sandbox, so more work gets done per model call <a href="https://arxiv.org/abs/2402.01030">[1]</a>. In most PTC harnesses, <b>no tool call runs until the model's response completes</b>, which can take seconds to minutes.</p>
+  <p class="pr">Alex Zhang introduced Speculative Programmatic Tool Calling <a href="https://alexzhang13.github.io/blog/2026/spec-ptc/">[2]</a> as a harness optimization for this bottleneck: a custom REPL parses the model's code as it streams and executes each tool call as soon as its statement is generated. A key feature is the pre-specification of which tools can be "speculated" on, i.e. run early.</p>
+  <p class="pr"><b>Here we show a simple implementation of Speculative Programmatic Tool Calling with Jev speculation</b>: instead of pre-specifying tools, Jev <a href="https://docs.typesafe.ai">[3]</a> checks each call, arguments included, against an approval policy you write as a prompt. Approved calls start immediately and denied calls run once the program is complete, which takes an agent turn on a browser task <b>from 8.85 s to 4.85 s</b> (<a href="https://github.com/pav-bio-gh/spec-ptc-jev">code on GitHub</a>).</p>
+  <pre class="lst"><span class="kw">from</span> spec_ptc_jev <span class="kw">import</span> <span class="ty">SpecRepl</span>
+
+repl = <span class="ty">SpecRepl</span>(model=<span class="str">"gpt-4.1-mini"</span>)
+
+<span class="cm"># Jev checks every browse() call against this before it may start early.</span>
+APPROVAL_POLICY = (
+    <span class="str">"Opening a URL and reading the page text. "</span>
+    <span class="str">"Never searching, typing, clicking, submitting a form, or logging in."</span>
+)
+
+<span class="ty">@repl.tool</span>(early_when=APPROVAL_POLICY)
+<span class="kw">def</span> browse(command: str) -> str:
+    <span class="kw">return</span> chromium.browse(command)
+
+<span class="ty">@repl.tool</span>(early=<span class="kw">True</span>)  <span class="cm"># always safe, skips Jev</span>
+<span class="kw">def</span> llm_query(prompt: str) -> str:
+    <span class="kw">return</span> sub_model(prompt)
+
+result = repl.completion(TASK)</pre>
+  <div class="frame"><button id="again" type="button">Restart</button><div class="fig">
+    <section class="col" data-arm="serial">
+      <div class="ttl">Baseline: tool calls execute after generation completes</div>
+      <div class="lab"><span>Model output</span><em class="state"></em></div>
+      <div class="ed"><div class="pin"></div><div class="view"><div class="lines"></div></div></div>
+      <div class="lab"><span>Tool-call monitor</span></div>
+      <table><colgroup><col style="width:41%"><col style="width:20%"><col style="width:15%"><col style="width:12%"><col style="width:12%"></colgroup>
+        <thead><tr><th>call</th><th>Jev verdict</th><th>status</th><th class="r">start (s)</th><th class="r">end (s)</th></tr></thead><tbody></tbody></table>
+      <div class="wall"><span>Wall time</span><span><b></b></span></div>
+    </section>
+    <section class="col" data-arm="gate">
+      <div class="ttl">Speculative PTC with Jev Approval Middleware</div>
+      <div class="lab"><span>Model output</span><em class="state"></em></div>
+      <div class="ed"><div class="pin"></div><div class="view"><div class="lines"></div></div></div>
+      <div class="lab"><span>Tool-call monitor</span></div>
+      <table><colgroup><col style="width:41%"><col style="width:20%"><col style="width:15%"><col style="width:12%"><col style="width:12%"></colgroup>
+        <thead><tr><th>call</th><th>Jev verdict</th><th>status</th><th class="r">start (s)</th><th class="r">end (s)</th></tr></thead><tbody></tbody></table>
+      <div class="wall"><span>Wall time</span><span><b></b><i>1.8× faster</i></span></div>
+    </section>
+  </div></div>
+  <h2>Results</h2>
+  <p class="pr">On one agent turn that loads five web pages, queries a sub-model and submits one search form, Speculative PTC with Jev finishes in 4.85 s, against 8.85 s for the baseline and 8.77 s for stock spec-ptc, where the browse tool defaults to no speculation because of the potential safety or correctness risk.</p>
+  <div class="scroll"><table class="res"><thead><tr><th>Setup (five live runs each)</th><th class="n">Median wall time</th></tr></thead><tbody>
+    <tr><td>Baseline: tool calls execute after generation completes</td><td class="n">8.85 s</td></tr>
+    <tr><td>Stock spec-ptc, browse tool defaults to no speculation</td><td class="n">8.77 s</td></tr>
+    <tr><td>Parallel calls, none before generation completes</td><td class="n">6.54 s</td></tr>
+    <tr><td>Speculative PTC with Jev Approval Middleware</td><td class="n">4.85 s</td></tr>
+  </tbody></table></div>
+
+  <h2>Jev, and what comes next</h2>
+  <p class="pr">Using the tool call inputs as context for the approver slots in well with generic tools like bash, which have been shown to be more effective than purpose-built tools <a href="https://arxiv.org/abs/2609.11999">[4]</a>. The recent release of Jev as a generally intelligent classifier has proved immediately attractive to users who want a cheap, fast classifier for any question. It has limitations, including a 32k context window and being closed source, although open models in the same space are appearing, like Laya <a href="https://github.com/NandhaKishorM/laya">[5]</a>. Nothing here depends on Jev except its speed. The approver is one object with a <code>decide</code> method, so any fast model fits, and so does a plain function. Unlike the classifier in Claude Code's auto mode <a href="https://claude.com/blog/auto-mode">[6]</a>, a deny here never blocks a call, it only delays it.</p>
+  <p class="pr">There are many improvements to make. Building custom approvers is the one that interests me most: logging every verdict with what happened next gives an eval set for a policy and training data for a purpose-built approver. This also composes with work that predicts an agent's next call before it is written <a href="https://arxiv.org/abs/2510.04371">[7]</a> <a href="https://arxiv.org/abs/2603.18897">[8]</a> <a href="https://arxiv.org/abs/2607.25816">[9]</a> <a href="https://arxiv.org/abs/2607.12236">[10]</a>. One limit today is that the approver only sees tool calls, so a write made in plain Python is invisible to it.</p>
+  <p class="pr">This implementation is a simple, accessible example of how to get pretty far, pretty quickly with safer, speculative tool calling.</p>
+
+  <h2>References</h2>
+  <ol class="pr refs">
+    <li>X. Wang et al. <a href="https://arxiv.org/abs/2402.01030">Executable Code Actions Elicit Better LLM Agents</a>. ICML 2024.</li>
+    <li>A. L. Zhang. <a href="https://alexzhang13.github.io/blog/2026/spec-ptc/">Speculative Programmatic Tool Calling</a>. 2026.</li>
+    <li>TypeSafe. <a href="https://docs.typesafe.ai">Jev documentation</a>.</li>
+    <li>H. Mak et al. <a href="https://arxiv.org/abs/2609.11999">Is Bash All You Need? An Empirical Study of Tool Interfaces for Enterprise Digital Worker Agents</a>. arXiv 2609.11999, 2026.</li>
+    <li>NandhaKishorM. <a href="https://github.com/NandhaKishorM/laya">Laya</a>. GitHub, 2026.</li>
+    <li>Anthropic. <a href="https://claude.com/blog/auto-mode">Auto mode for Claude Code</a>. 2026.</li>
+    <li>N. Ye et al. <a href="https://arxiv.org/abs/2510.04371">Speculative Actions</a>. ICLR 2026.</li>
+    <li><a href="https://arxiv.org/abs/2603.18897">Act While Thinking</a>. arXiv 2603.18897, 2026.</li>
+    <li><a href="https://arxiv.org/abs/2607.25816">Speculate While You Reason</a>. arXiv 2607.25816, 2026.</li>
+    <li><a href="https://arxiv.org/abs/2607.12236">Speculate with Memory</a>. arXiv 2607.12236, 2026.</li>
+  </ol>
+</div>
+
+<script>
+// the code card: one element per line (for the line numbers) and quiet punctuation
+for (const pre of document.querySelectorAll("pre.lst")) {
+  pre.innerHTML = pre.innerHTML.split("\n").map(l => `<span class="l">${l || " "}</span>`).join("");
+  const walk = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT), nodes = [];
+  while (walk.nextNode()) if (!walk.currentNode.parentNode.closest(".str,.cm")) nodes.push(walk.currentNode);
+  for (const n of nodes) {
+    const parts = n.nodeValue.split(/([()=,.:]|->)/);
+    if (parts.length < 2) continue;
+    const frag = document.createDocumentFragment();
+    parts.forEach((t, k) => { if (!t) return; if (k % 2) { const e = document.createElement("span"); e.className = "pn"; e.textContent = t; frag.append(e); } else frag.append(t); });
+    n.replaceWith(frag);
+  }
+}
+const D = {"serial": {"wall": 8.851, "stream_end": 2.8595, "code": "# Open each Wikipedia page and keep the first 700 characters of its text\nalan_turing_text = browse('open wiki/Alan_Turing')[:700]\ngrace_hopper_text = browse('open wiki/Grace_Hopper')[:700]\nada_lovelace_text = browse('open wiki/Ada_Lovelace')[:700]\njohn_von_neumann_text = browse('open wiki/John_von_Neumann')[:700]\nclaude_shannon_text = browse('open wiki/Claude_Shannon')[:700]\n\n# Prepare prompt for llm_query\nprompt = f\"\"\"\nHere are excerpts from Wikipedia pages about five people:\n\nAlan Turing:\n{alan_turing_text}\n\nGrace Hopper:\n{grace_hopper_text}\n\nAda Lovelace:\n{ada_lovelace_text}\n\nJohn von Neumann:\n{john_von_neumann_text}\n\nClaude Shannon:\n{claude_shannon_text}\n\nPlease do the following:\n1. List each person's birth year, one per line, in the format \"Name: Year\".\n2. On the LAST line, write ONE sentence listing the five people from oldest to youngest with their birth years.\n\"\"\"\n\nbirth_years_and_order = llm_query(prompt)\n\n# Search Wikipedia for 'Turing Award'\nturing_award_url = browse('search Turing Award')\n\n# Print the sentence (last non-empty line of the llm_query reply)\nlines = birth_years_and_order.strip().split('\\n')\n# Find last non-empty line\nlast_line = ''\nfor line in reversed(lines):\n    if line.strip():\n        last_line = line.strip()\n        break\n\nprint(last_line)\nprint(turing_award_url)\n\nfinal_answer(last_line)", "calls": [{"l": "open Alan_Turing", "t0": 2.86, "t1": 3.804, "early": false}, {"l": "open Grace_Hopper", "t0": 3.8041, "t1": 4.505, "early": false}, {"l": "open Ada_Lovelace", "t0": 4.5051, "t1": 5.2015, "early": false}, {"l": "open John_von_Neumann", "t0": 5.2016, "t1": 5.9788, "early": false}, {"l": "open Claude_Shannon", "t0": 5.9788, "t1": 6.6978, "early": false}, {"l": "llm_query", "t0": 6.6979, "t1": 7.3866, "early": false}, {"l": "search Turing Award", "t0": 7.3867, "t1": 8.8507, "early": false}], "judged": []}, "gate": {"wall": 4.849, "stream_end": 2.4255, "code": "alan_turing_text = browse('open wiki/Alan_Turing')[:700]\ngrace_hopper_text = browse('open wiki/Grace_Hopper')[:700]\nada_lovelace_text = browse('open wiki/Ada_Lovelace')[:700]\njohn_von_neumann_text = browse('open wiki/John_von_Neumann')[:700]\nclaude_shannon_text = browse('open wiki/Claude_Shannon')[:700]\n\nprompt = f\"\"\"\nHere are five texts about famous people:\n\nAlan Turing:\n{alan_turing_text}\n\nGrace Hopper:\n{grace_hopper_text}\n\nAda Lovelace:\n{ada_lovelace_text}\n\nJohn von Neumann:\n{john_von_neumann_text}\n\nClaude Shannon:\n{claude_shannon_text}\n\nPlease do the following in one reply:\n1. List each person's birth year, one per line, in the format: Name: Year\n2. On the LAST line, write ONE sentence listing the five people from oldest to youngest with their birth years.\n\nThe last non-empty line of your reply should be the sentence.\n\"\"\"\n\nbirth_years_and_sentence = llm_query(prompt)\n\nturing_award_url = browse('search Turing Award')\n\nprint(birth_years_and_sentence.strip())\nprint(turing_award_url)\n\n# Extract the last non-empty line (the sentence) from the LLM reply\nlines = birth_years_and_sentence.strip().split('\\n')\nfor line in reversed(lines):\n    if line.strip():\n        final_sentence = line.strip()\n        break\n\nfinal_answer(final_sentence)", "calls": [{"l": "open Alan_Turing", "t0": 0.6998, "t1": 1.6149, "early": true}, {"l": "open Grace_Hopper", "t0": 0.9109, "t1": 1.6288, "early": true}, {"l": "open Ada_Lovelace", "t0": 1.0551, "t1": 1.7338, "early": true}, {"l": "open John_von_Neumann", "t0": 1.3358, "t1": 2.1207, "early": true}, {"l": "open Claude_Shannon", "t0": 1.336, "t1": 2.0514, "early": true}, {"l": "llm_query", "t0": 2.1212, "t1": 2.8994, "early": true}, {"l": "search Turing Award", "t0": 2.9001, "t1": 4.8476, "early": false}], "judged": [{"l": "open Alan_Turing", "t0": 0.4825, "t1": 0.6995, "ok": true, "p": 0.89, "s": 0.23}, {"l": "open Grace_Hopper", "t0": 0.7006, "t1": 0.911, "ok": true, "p": 0.92, "s": 0.2}, {"l": "open Ada_Lovelace", "t0": 0.9113, "t1": 1.055, "ok": true, "p": 0.91, "s": 0.23}, {"l": "open Claude_Shannon", "t0": 1.0556, "t1": 1.2795, "ok": true, "p": 0.92, "s": 0.23}, {"l": "open John_von_Neumann", "t0": 1.0556, "t1": 1.3359, "ok": true, "p": 0.91, "s": 0.21}, {"l": "search Turing Award", "t0": 1.9966, "t1": 2.2265, "ok": false, "p": 0.04, "s": 0.47}]}}, SPAN = 9, SPEED = .5, HOLD = 2.5;
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+// first-token delay, from the run where a recorded event pins it down
+const lag = (() => { const g = D.gate, j = g.judged[0], key = j.l.replace("open ", ""); let pos = 0;
+  for (const l of g.code.split("\n")) { if (l.includes(key)) { pos += l.length; break; } pos += l.length + 1; }
+  const rate = (g.code.length - pos) / (g.stream_end - j.t0); return Math.max(0, j.t0 - pos / rate); })();
+
+const arms = ["serial", "gate"].map(name => {
+  const A = D[name], root = document.querySelector(`.col[data-arm=${name}]`), total = A.code.length, rate = total / (A.stream_end - lag);
+  let inStr = false, pos = 0;
+  const L = A.code.split("\n").map(text => {
+    const wasIn = inStr; if ((text.match(/"""/g) || []).length % 2) inStr = !inStr;
+    const str = wasIn || (inStr && !/=/.test(text));
+    const m = !str && text.match(/browse\('([^']+)'\)/), llm = !str && /= llm_query\(/.test(text);
+    const call = m ? A.calls.find(c => c.l === m[1].replace("wiki/", "")) : llm ? A.calls.find(c => c.l.startsWith("llm")) : null;
+    const o = {text, str, call, j: call && A.judged.find(j => j.l === call.l), start: pos, end: pos + text.length}; pos += text.length + 1; return o;
+  });
+  const row = (l, i) => `<div class="ln"><span class="no">${i + 1}</span><span class="tx"></span><span class="tag"></span></div>`;
+  root.querySelector(".lines").innerHTML = L.map(row).join("");
+  const calls = L.map((l, i) => [l, i]).filter(([l]) => l.call);
+  root.querySelector(".pin").innerHTML = calls.map(([l, i]) => row(l, i)).join("");
+  const src = c => c.l.startsWith("llm") ? "llm_query(prompt)" : `browse('${c.l}')`;
+  root.querySelector("tbody").innerHTML = A.calls.map(c => `<tr><td>${esc(src(c))}</td><td class="g"></td><td class="st"></td><td class="r"></td><td class="r"></td></tr>`).join("");
+  return {name, A, L, total, rate, root, calls, els: [...root.querySelector(".lines").children], pins: [...root.querySelector(".pin").children],
+    rows: [...root.querySelectorAll("tbody tr")], view: root.querySelector(".view"), state: root.querySelector(".state"), wall: root.querySelector(".wall b"), gain: root.querySelector(".wall i")};
+});
+
+const hl = (l, s) => l.str ? `<span class="str">${esc(s)}</span>` : /^\s*#/.test(l.text) ? `<span class="cm">${esc(s)}</span>` :
+  esc(s).replace(/(f?"""|'[^']*'?|"[^"]*"?)/g, '<span class="str">$1</span>').replace(/\b(browse|llm_query|final_answer|print|for|in|if|break)\b/g, '<span class="kw">$1</span>');
+
+// one tool call at time t: [row class, margin note in the editor, status in the monitor]
+function stateOf(arm, l, n, t) {
+  const c = l.call, j = l.j, denied = j && !j.ok;
+  if (n < l.end) return ["idle", "", ""];
+  if (t >= c.t1) return ["done", "done", "done"];
+  if (t >= c.t0) return ["exec", "executing", "executing"];
+  if (j && t >= j.t0 && t < j.t1) return ["judge", "judging", "judging"];
+  if (denied && t >= j.t1) return ["hold", "denied, deferred", "deferred"];
+  return ["wait", "", "pending"];
+}
+function gateOf(arm, l, n, t) {
+  const j = l.j; if (arm.name === "serial") return ["", "—"];
+  if (n < l.end) return ["", ""];
+  if (!j) return ["", "exempt"];
+  if (t < j.t0) return ["", "queued"]; if (t < j.t1) return ["", "…"];
+  return [j.ok ? "allow" : "deny", (j.ok ? "allow" : "deny") + " · " + Math.round((j.t1 - j.t0) * 1000) + " ms"];
+}
+
+function draw(t) {
+  for (const arm of arms) {
+    const {A, L} = arm, n = Math.max(0, Math.min(arm.total, Math.round((t - lag) * arm.rate))), typing = n < arm.total; let cur = 0, active = -1;
+    arm.state.textContent = n === 0 ? "" : typing ? "generating" : "complete at " + A.stream_end.toFixed(2) + " s";
+    const lh = arm.els[0].getBoundingClientRect().height || 1;
+    L.forEach((l, i) => {
+      const el = arm.els[i], k = Math.max(0, Math.min(l.text.length, n - l.start));
+      if (n >= l.start) cur = i;
+      el.children[1].innerHTML = hl(l, l.text.slice(0, k)) + (typing && n >= l.start && n <= l.end ? '<span class="caret"></span>' : "");
+      el.children[0].style.visibility = n >= l.start ? "visible" : "hidden";
+      if (l.call) { const [cls, note] = stateOf(arm, l, n, t); el.className = "ln " + cls; el.children[2].textContent = note; if (active < 0 && (cls === "exec" || cls === "hold")) active = i; }
+    });
+    // follow the cursor while generating; afterwards follow the line being executed, like a debugger
+    const live = arm.calls.filter(([l, i]) => ["judge", "exec", "hold"].includes(stateOf(arm, l, n, t)[0]));
+    const focus = typing || active < 0 ? cur : active, fit = Math.max(3, Math.floor(arm.view.clientHeight / lh) - 1);
+    const top = Math.max(0, Math.min(L.length - fit, focus - Math.floor(fit * (typing ? .85 : .4))));
+    arm.root.querySelector(".lines").style.transform = `translateY(${-top * lh}px)`;
+    // sticky scroll: an active call line that is out of view stays on top
+    arm.calls.forEach(([l, i], k) => { const p = arm.pins[k], [cls, note] = stateOf(arm, l, n, t), off = (i < top || i > top + fit) && ["judge", "exec", "hold"].includes(cls);
+      p.hidden = !off; if (off) { p.className = "ln " + cls; p.children[1].innerHTML = hl(l, l.text); p.children[2].textContent = note; } });
+    // the monitor
+    A.calls.forEach((c, k) => { const l = arm.calls.find(([x]) => x.call === c)[0], [cls, , st] = stateOf(arm, l, n, t), [gc, gt] = gateOf(arm, l, n, t), tr = arm.rows[k];
+      tr.className = cls; tr.children[1].className = "g " + gc; tr.children[1].textContent = gt; tr.children[2].textContent = st;
+      tr.children[3].textContent = t >= c.t0 ? c.t0.toFixed(2) : ""; tr.children[4].textContent = t >= c.t1 ? c.t1.toFixed(2) : ""; });
+    arm.wall.textContent = Math.min(t, A.wall).toFixed(2) + " s";
+    if (arm.gain) arm.gain.classList.toggle("on", t >= D.serial.wall);
+  }
+}
+let t = 0, last = 0, raf = 0; const once = location.hash === "#once";
+function step(now) { t += (now - last) / 1000 * SPEED; last = now; draw(t); if (t > SPAN + HOLD) { if (once) return; t = 0; } raf = requestAnimationFrame(step); }
+function start() { cancelAnimationFrame(raf); t = 0; last = performance.now(); raf = requestAnimationFrame(step); }
+document.getElementById("again").addEventListener("click", start); addEventListener("resize", () => draw(t));
+draw(SPAN + 1); if (!matchMedia("(prefers-reduced-motion: reduce)").matches) setTimeout(start, 700);
+</script>
