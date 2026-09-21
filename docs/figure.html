@@ -1,13 +1,16 @@
 <title>How Jev slots in</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
 <style>
 /* A paper figure: one committed light look, black ink, thin rules, two muted accents. */
 :root{--ground:#FFFFFF;--page:#F4F4F2;--ink:#16181B;--grey:#5F656D;--faint:#9BA1A8;--rule:#C9CDD2;--hair:#E6E8EB;
   --run:#1F4E9C;--run-bg:#EAF0FA;--judge:#6B5B95;--judge-bg:#F1EEF7;--deny:#A8481A;--deny-bg:#FBEFE7}
 body{background:var(--page);color:var(--ink);font:400 14px/1.5 "Source Serif 4",Georgia,serif;padding-inline:16px;padding-block:24px 40px}
 .wrap{max-width:1280px;margin-inline:auto;display:flex;flex-direction:column;gap:12px}
-.lst{background:var(--ground);border:1px solid var(--rule);margin:0 auto;width:100%;max-width:820px;box-sizing:border-box;padding:16px 20px;overflow-x:auto;font:400 13px/1.6 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink)}
-.lst .kw{color:#1F4E9C}.lst .str{color:#7A4B12}.lst .cm{color:#3F6B45}
+.lst{background:#FFFFFF;border:1px solid #E4E6EA;border-radius:14px;margin:0 auto;width:100%;max-width:820px;box-sizing:border-box;padding:20px 24px 20px 0;overflow-x:auto;
+  font:400 14px/1.85 "Geist Mono","IBM Plex Mono",ui-monospace,monospace;color:#1F2328;counter-reset:ln;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.lst .l{display:block;white-space:pre;counter-increment:ln}
+.lst .l::before{content:counter(ln);display:inline-block;width:2.2em;margin-right:1.4em;text-align:right;color:#C2C7CE;user-select:none}
+.lst .kw{color:#1F2328}.lst .ty{color:#7A4DFF}.lst .str{color:#EE5A1F}.lst .cm{color:#9AA1A9}.lst .pn{color:#A9AFB7}
 .cap{width:100%;max-width:820px;margin:0 auto;font-size:14.5px;line-height:1.5}.cap b{font-weight:600}
 .ctl{width:100%;max-width:820px;margin-inline:auto;display:flex;gap:10px;align-items:center;font:400 12.5px "IBM Plex Sans",sans-serif}
 button{font:inherit;background:var(--ground);color:var(--ink);border:1px solid var(--rule);border-radius:3px;padding:3px 11px;cursor:pointer}
@@ -57,9 +60,9 @@ td.g.deny{color:var(--deny)}td.g.allow{color:var(--ink)}
 </style>
 
 <div class="wrap">
-  <pre class="lst"><span class="kw">from</span> spec_ptc_jev <span class="kw">import</span> SpecRepl
+  <pre class="lst"><span class="kw">from</span> spec_ptc_jev <span class="kw">import</span> <span class="ty">SpecRepl</span>
 
-repl = SpecRepl(model=<span class="str">"gpt-4.1-mini"</span>)
+repl = <span class="ty">SpecRepl</span>(model=<span class="str">"gpt-4.1-mini"</span>)
 
 <span class="cm"># Jev checks every browse() call against this before it may start early.</span>
 APPROVAL_POLICY = (
@@ -67,11 +70,11 @@ APPROVAL_POLICY = (
     <span class="str">"Never searching, typing, clicking, submitting a form, or logging in."</span>
 )
 
-<span class="kw">@repl.tool</span>(early_when=APPROVAL_POLICY)
+<span class="ty">@repl.tool</span>(early_when=APPROVAL_POLICY)
 <span class="kw">def</span> browse(command: str) -> str:
     <span class="kw">return</span> chromium.browse(command)
 
-<span class="kw">@repl.tool</span>(early=<span class="kw">True</span>)  <span class="cm"># always safe, skips Jev</span>
+<span class="ty">@repl.tool</span>(early=<span class="kw">True</span>)  <span class="cm"># always safe, skips Jev</span>
 <span class="kw">def</span> llm_query(prompt: str) -> str:
     <span class="kw">return</span> sub_model(prompt)
 
@@ -99,6 +102,19 @@ result = repl.completion(TASK)</pre>
 </div>
 
 <script>
+// the code card: one element per line (for the line numbers) and quiet punctuation
+for (const pre of document.querySelectorAll("pre.lst")) {
+  pre.innerHTML = pre.innerHTML.split("\n").map(l => `<span class="l">${l || " "}</span>`).join("");
+  const walk = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT), nodes = [];
+  while (walk.nextNode()) if (!walk.currentNode.parentNode.closest(".str,.cm")) nodes.push(walk.currentNode);
+  for (const n of nodes) {
+    const parts = n.nodeValue.split(/([()=,.:]|->)/);
+    if (parts.length < 2) continue;
+    const frag = document.createDocumentFragment();
+    parts.forEach((t, k) => { if (!t) return; if (k % 2) { const e = document.createElement("span"); e.className = "pn"; e.textContent = t; frag.append(e); } else frag.append(t); });
+    n.replaceWith(frag);
+  }
+}
 const D = {"serial": {"wall": 8.851, "stream_end": 2.8595, "code": "# Open each Wikipedia page and keep the first 700 characters of its text\nalan_turing_text = browse('open wiki/Alan_Turing')[:700]\ngrace_hopper_text = browse('open wiki/Grace_Hopper')[:700]\nada_lovelace_text = browse('open wiki/Ada_Lovelace')[:700]\njohn_von_neumann_text = browse('open wiki/John_von_Neumann')[:700]\nclaude_shannon_text = browse('open wiki/Claude_Shannon')[:700]\n\n# Prepare prompt for llm_query\nprompt = f\"\"\"\nHere are excerpts from Wikipedia pages about five people:\n\nAlan Turing:\n{alan_turing_text}\n\nGrace Hopper:\n{grace_hopper_text}\n\nAda Lovelace:\n{ada_lovelace_text}\n\nJohn von Neumann:\n{john_von_neumann_text}\n\nClaude Shannon:\n{claude_shannon_text}\n\nPlease do the following:\n1. List each person's birth year, one per line, in the format \"Name: Year\".\n2. On the LAST line, write ONE sentence listing the five people from oldest to youngest with their birth years.\n\"\"\"\n\nbirth_years_and_order = llm_query(prompt)\n\n# Search Wikipedia for 'Turing Award'\nturing_award_url = browse('search Turing Award')\n\n# Print the sentence (last non-empty line of the llm_query reply)\nlines = birth_years_and_order.strip().split('\\n')\n# Find last non-empty line\nlast_line = ''\nfor line in reversed(lines):\n    if line.strip():\n        last_line = line.strip()\n        break\n\nprint(last_line)\nprint(turing_award_url)\n\nfinal_answer(last_line)", "calls": [{"l": "open Alan_Turing", "t0": 2.86, "t1": 3.804, "early": false}, {"l": "open Grace_Hopper", "t0": 3.8041, "t1": 4.505, "early": false}, {"l": "open Ada_Lovelace", "t0": 4.5051, "t1": 5.2015, "early": false}, {"l": "open John_von_Neumann", "t0": 5.2016, "t1": 5.9788, "early": false}, {"l": "open Claude_Shannon", "t0": 5.9788, "t1": 6.6978, "early": false}, {"l": "llm_query", "t0": 6.6979, "t1": 7.3866, "early": false}, {"l": "search Turing Award", "t0": 7.3867, "t1": 8.8507, "early": false}], "judged": []}, "gate": {"wall": 4.849, "stream_end": 2.4255, "code": "alan_turing_text = browse('open wiki/Alan_Turing')[:700]\ngrace_hopper_text = browse('open wiki/Grace_Hopper')[:700]\nada_lovelace_text = browse('open wiki/Ada_Lovelace')[:700]\njohn_von_neumann_text = browse('open wiki/John_von_Neumann')[:700]\nclaude_shannon_text = browse('open wiki/Claude_Shannon')[:700]\n\nprompt = f\"\"\"\nHere are five texts about famous people:\n\nAlan Turing:\n{alan_turing_text}\n\nGrace Hopper:\n{grace_hopper_text}\n\nAda Lovelace:\n{ada_lovelace_text}\n\nJohn von Neumann:\n{john_von_neumann_text}\n\nClaude Shannon:\n{claude_shannon_text}\n\nPlease do the following in one reply:\n1. List each person's birth year, one per line, in the format: Name: Year\n2. On the LAST line, write ONE sentence listing the five people from oldest to youngest with their birth years.\n\nThe last non-empty line of your reply should be the sentence.\n\"\"\"\n\nbirth_years_and_sentence = llm_query(prompt)\n\nturing_award_url = browse('search Turing Award')\n\nprint(birth_years_and_sentence.strip())\nprint(turing_award_url)\n\n# Extract the last non-empty line (the sentence) from the LLM reply\nlines = birth_years_and_sentence.strip().split('\\n')\nfor line in reversed(lines):\n    if line.strip():\n        final_sentence = line.strip()\n        break\n\nfinal_answer(final_sentence)", "calls": [{"l": "open Alan_Turing", "t0": 0.6998, "t1": 1.6149, "early": true}, {"l": "open Grace_Hopper", "t0": 0.9109, "t1": 1.6288, "early": true}, {"l": "open Ada_Lovelace", "t0": 1.0551, "t1": 1.7338, "early": true}, {"l": "open John_von_Neumann", "t0": 1.3358, "t1": 2.1207, "early": true}, {"l": "open Claude_Shannon", "t0": 1.336, "t1": 2.0514, "early": true}, {"l": "llm_query", "t0": 2.1212, "t1": 2.8994, "early": true}, {"l": "search Turing Award", "t0": 2.9001, "t1": 4.8476, "early": false}], "judged": [{"l": "open Alan_Turing", "t0": 0.4825, "t1": 0.6995, "ok": true, "p": 0.89, "s": 0.23}, {"l": "open Grace_Hopper", "t0": 0.7006, "t1": 0.911, "ok": true, "p": 0.92, "s": 0.2}, {"l": "open Ada_Lovelace", "t0": 0.9113, "t1": 1.055, "ok": true, "p": 0.91, "s": 0.23}, {"l": "open Claude_Shannon", "t0": 1.0556, "t1": 1.2795, "ok": true, "p": 0.92, "s": 0.23}, {"l": "open John_von_Neumann", "t0": 1.0556, "t1": 1.3359, "ok": true, "p": 0.91, "s": 0.21}, {"l": "search Turing Award", "t0": 1.9966, "t1": 2.2265, "ok": false, "p": 0.04, "s": 0.47}]}}, SPAN = 9, SPEED = .5, HOLD = 2.5;
 const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
