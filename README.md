@@ -70,7 +70,8 @@ On 103 state-changing `bash`, `sql`, `http` and prompt-injection calls, Jev appr
 none early, and it approved 74 of 78 safe ones. Those sets are small and have one author.
 
 Reproduce: `uv run python -m examples.browse_race 5` and
-`uv run python -m evals.run_gate_eval`. The write-up is in `docs/post.html`.
+`uv run python -m evals.run_gate_eval`. The write-up is at
+[pav.bio/blog/speculative-tool-calling-with-jev](https://pav.bio/blog/speculative-tool-calling-with-jev).
 
 ## How it works
 
