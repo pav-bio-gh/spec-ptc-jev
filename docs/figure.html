@@ -31,20 +31,20 @@ button:focus-visible{outline:2px solid var(--run);outline-offset:2px}
 .pin{flex:none;border-bottom:1px solid var(--rule);background:#FAFAF9}
 .view{flex:1;position:relative;overflow:hidden;min-height:0}
 .lines{position:absolute;inset:0 0 auto 0}
-.ln{display:grid;grid-template-columns:2.7cqw 1fr auto;align-items:center;height:1.6cqw;font:400 .9cqw/1 "IBM Plex Mono",ui-monospace,monospace;white-space:pre;border-left:.22cqw solid transparent}
+.ln{display:grid;grid-template-columns:2.7cqw 1fr auto;align-items:center;height:1.6cqw;font:400 .9cqw/1 "Geist Mono","IBM Plex Mono",ui-monospace,monospace;color:#1F2328;white-space:pre;border-left:.22cqw solid transparent}
 .ln[hidden]{display:none}
-.ln .no{color:var(--faint);text-align:right;padding-right:.9cqw;font-size:.74cqw}
+.ln .no{color:#C2C7CE;text-align:right;padding-right:.9cqw;font-size:.74cqw}
 .ln .tx{overflow:hidden;text-overflow:ellipsis}
 .ln .tag{font:italic 400 .9cqw/1 "Source Serif 4",Georgia,serif;padding:0 .7cqw 0 1cqw;white-space:nowrap;color:var(--ink)}
 .ln.judge{background:var(--judge-bg);border-left-color:var(--judge)}.ln.judge .tag{color:var(--judge)}
 .ln.exec{background:var(--run-bg);border-left-color:var(--run)}.ln.exec .tag{color:var(--run)}
 .ln.hold{background:var(--deny-bg);border-left-color:var(--deny)}.ln.hold .tag{color:var(--deny)}
 .ln.done .tag{color:var(--ink)}
-.kw{color:#1F4E9C}.str{color:#7A4B12}.cm{color:#3F6B45}
+.kw{color:#1F2328}.ty{color:#7A4DFF}.str{color:#EE5A1F}.cm{color:#9AA1A9}.pn{color:#A9AFB7}
 .caret{display:inline-block;width:.42cqw;height:.95cqw;background:var(--ink);vertical-align:-.13cqw}
 
 /* the monitor: a plain table */
-table{border-collapse:collapse;width:100%;font:400 .95cqw/1 "IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;table-layout:fixed}
+table{border-collapse:collapse;width:100%;font:400 .95cqw/1 "Geist Mono","IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;table-layout:fixed}
 thead th{font:600 .86cqw/1 "IBM Plex Sans",sans-serif;color:var(--ink);text-align:left;padding:.55cqw .5cqw;border-top:1.5px solid var(--ink);border-bottom:1px solid var(--ink)}
 tbody td{padding:0 .5cqw;height:2.05cqw;border-bottom:1px solid var(--hair);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 tbody tr:last-child td{border-bottom:1.5px solid var(--ink)}
@@ -143,8 +143,10 @@ const arms = ["serial", "gate"].map(name => {
     rows: [...root.querySelectorAll("tbody tr")], view: root.querySelector(".view"), state: root.querySelector(".state"), wall: root.querySelector(".wall b"), gain: root.querySelector(".wall i")};
 });
 
+const tok = t => t.replace(/\b(browse|llm_query|final_answer)\b|\b(print|for|in|if|break|def|return|import|from)\b|([()=,.:\[\]]|-&gt;)/g,
+  (x, ty, kw, pn) => `<span class="${ty ? "ty" : kw ? "kw" : "pn"}">${x}</span>`);
 const hl = (l, s) => l.str ? `<span class="str">${esc(s)}</span>` : /^\s*#/.test(l.text) ? `<span class="cm">${esc(s)}</span>` :
-  esc(s).replace(/(f?"""|'[^']*'?|"[^"]*"?)/g, '<span class="str">$1</span>').replace(/\b(browse|llm_query|final_answer|print|for|in|if|break)\b/g, '<span class="kw">$1</span>');
+  esc(s).split(/(f?"""|'[^']*'?|"[^"]*"?)/).map((part, k) => k % 2 ? `<span class="str">${part}</span>` : tok(part)).join("");
 
 // one tool call at time t: [row class, margin note in the editor, status in the monitor]
 function stateOf(arm, l, n, t) {
