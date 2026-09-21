@@ -521,6 +521,11 @@ class Run:
     turns: list[Turn]
 
     @property
+    def response(self) -> str | None:
+        """The final answer, under the name RLM uses."""
+        return self.answer
+
+    @property
     def error(self) -> str | None:
         return self.turns[-1].error if self.turns else None
 
@@ -532,6 +537,8 @@ class SpecRepl:
     def __init__(
         self,
         *,
+        model: str | None = None,
+        client: Any = None,
         judge: Judge | None = None,
         worker: JudgeWorker | None = None,
         speculate: bool = True,
@@ -540,7 +547,13 @@ class SpecRepl:
     ) -> None:
         """Nothing starts early unless you mark a tool with `early=True` or `early_when=...`.
         With no marked tools (or `speculate=False`) this is a plain loop: the whole block is
-        generated, then run in order, and the judge is never contacted."""
+        generated, then run in order, and the judge is never contacted.
+
+        `model` names an OpenAI-compatible chat model for `completion` / `acompletion`. `client`
+        is an `openai.OpenAI` or `openai.AsyncOpenAI` (pass one with `base_url=` for vLLM and
+        other servers); by default one is made from the environment."""
+        self.model = model
+        self._client = client
         self._judge = judge
         self._worker = worker
         self.speculate = speculate
@@ -1108,6 +1121,50 @@ class SpecRepl:
             "want to see; you get the output back and may write another block.\n"
             "When you are done, call final_answer(<the final answer as a string>)."
         )
+
+    def _model_chat(self, want_async: bool) -> Callable[[list[dict]], Any]:
+        """A `chat(messages)` for `run` / `arun`, streaming from `self.model`."""
+        if self.model is None:
+            raise ValueError(
+                'SpecRepl(model="...") is needed for completion(); or call run(chat, task)'
+            )
+        client = self._client
+        if client is None:
+            try:
+                import openai  # optional: only needed when the package makes the model call
+            except ImportError as e:
+                raise ImportError(
+                    "completion() needs the openai package: pip install openai"
+                ) from e
+            client = openai.AsyncOpenAI() if want_async else openai.OpenAI()
+        model, create = self.model, client.chat.completions.create
+
+        if type(client).__name__.startswith("Async"):  # openai.AsyncOpenAI and its kin
+
+            async def achat(messages: list[dict]):
+                async for chunk in await create(model=model, messages=messages, stream=True):
+                    if chunk.choices:
+                        yield chunk.choices[0].delta.content or ""
+
+            return achat
+
+        def chat(messages: list[dict]):
+            for chunk in create(model=model, messages=messages, stream=True):
+                if chunk.choices:
+                    yield chunk.choices[0].delta.content or ""
+
+        return chat
+
+    def completion(self, task: str, *, max_turns: int = 6) -> Run:
+        """Run a task with `SpecRepl(model=...)`. Blocking; in an asyncio app use `acompletion`."""
+        chat = self._model_chat(want_async=False)
+        if inspect.isasyncgenfunction(chat):
+            raise TypeError("an AsyncOpenAI client needs `await repl.acompletion(task)`")
+        return self.run(chat, task, max_turns=max_turns)
+
+    async def acompletion(self, task: str, *, max_turns: int = 6) -> Run:
+        """`completion` for asyncio apps."""
+        return await self.arun(self._model_chat(want_async=True), task, max_turns=max_turns)
 
     def _messages(self, task: str) -> list[dict]:
         return [

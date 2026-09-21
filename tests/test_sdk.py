@@ -333,3 +333,10 @@ def test_planning_never_touches_model_defined_objects():
     assert where == [
         "format ran on spec-repl-exec"
     ]  # once, by the program itself, never by planning
+
+
+def test_completion_without_a_model_says_what_to_do():
+    repl = SpecRepl()
+    with pytest.raises(ValueError, match="model="):
+        repl.completion("anything")
+    repl.close()
