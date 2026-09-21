@@ -14,7 +14,7 @@ removes. A boolean per tool cannot express that. A sentence can:
 ```python
 from spec_ptc_jev import SpecRepl
 
-repl = SpecRepl()
+repl = SpecRepl(model="gpt-4.1-mini")
 
 
 @repl.tool(early_when="GET requests that only read data. Never POST, PUT, PATCH or DELETE.")
@@ -31,20 +31,23 @@ def llm_query(prompt: str) -> str: ...
 def save_note(text: str) -> str: ...
 
 
-result = await repl.arun(chat, "Which of these six packages needs the newest Python?")
-print(result.answer)
+result = repl.completion("Which of these six packages needs the newest Python?")
+print(result.response)
 ```
 
 That is the whole API.
 
 - **Tools** are plain functions or `async def`. The model calls both as plain functions.
-- **`chat(messages)`** is any function that streams your model's reply to OpenAI-style
-  messages, as an async or a plain iterator.
-- **`await repl.arun(chat, task)`** writes the model's instructions from your tools, runs
-  each turn, feeds the output back, and stops when the model calls `final_answer(...)`.
-  Your async tools run on your own event loop, so sessions and pools created in your app
-  just work. In a script, `repl.run(chat, task)` is the same thing, blocking. If you
-  already have a loop, `arun_turn(stream)` / `run_turn(stream)` run one turn.
+- **`repl.completion(task)`** writes the model's instructions from your tools, runs each
+  turn, feeds the output back, and stops when the model calls `final_answer(...)`. In an
+  asyncio app use `await repl.acompletion(task)`: your async tools then run on your own
+  event loop, so sessions and pools created in your app just work.
+- **The model** is any OpenAI-compatible chat model (`pip install openai`). For vLLM or
+  another server pass `client=openai.OpenAI(base_url=...)`. For any other provider, write
+  a `chat(messages)` function that streams the reply as text and call
+  `repl.run(chat, task)` or `await repl.arun(chat, task)`.
+- **Own your loop?** `run_turn(stream)` / `arun_turn(stream)` run one turn from a token
+  stream, the same shape as spec-ptc's `turn.feed(delta)`.
 - **Nothing starts early unless you say so.** With no tool marked `early` or
   `early_when`, this is a plain loop: the whole reply is generated, then run in order, and
   Jev is never contacted (no TypeSafe key needed). Marking a tool is the only opt-in.
